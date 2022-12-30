@@ -1,0 +1,113 @@
+install.packages("randomForest")
+library(randomForest)
+install.packages("mice")
+library(mice)
+install.packages("caTools")
+library(caTools)
+install.packages("rpart")
+library(rpart)
+install.packages("rpart.plot")
+library(rpart.plot)
+train=read.csv("train.csv")
+
+str(train)
+summary(train)
+
+newtrain=train
+newtrain[newtrain$PassengerId == ""] = 0
+newtrain[newtrain$Transported == ""] = TRUE
+
+str(newtrain)
+summary(newtrain)
+
+
+
+finaltrain = newtrain
+
+full_df <- separate(finaltrain, Cabin, c('deck', 'num', 'side'))
+
+# Convert datatype of numeric or categorical data respectively 
+full_df$num <- as.numeric(full_df$num)
+full_df     <- as.data.frame(unclass(full_df), stringsAsFactors = T)
+
+
+
+
+
+
+finaltrain$VIP=as.factor(finaltrain$VIP)
+class(finaltrain$VIP)
+finaltrain$CryoSleep=as.factor(finaltrain$CryoSleep)
+class(finaltrain$CryoSleep)
+finaltrain$Transported=as.factor(finaltrain$Transported)
+class(finaltrain$Transported)
+endtrain = mice(finaltrain,m=5,method=c("","","polyreg","","","pmm","polyreg","pmm","pmm","pmm","pmm","pmm","","logreg"),maxit=20)
+
+summary(finaltrain$Age)
+
+train <- separate(finaltrain, Cabin, c('deck','num','side'))
+#deck=as.factor(finaltrain$deck)
+#num=as.factor(finaltrain$num)
+#side=as.factor(finaltrain$side)
+
+#train$deck=as.factor(finaltrain$deck)
+#train$num=as.numeric(finaltrain$num)
+#train$side=as.factor(finaltrain$side)
+
+
+
+endtrain$imp$Age
+cleantrain=complete(endtrain,1)
+summary(cleantrain)
+colSums(is.na(cleantrain))
+
+set.seed(3000)
+split=sample.split(cleantrain$Transported,SplitRatio = 0.75)
+split
+
+# Create training and testing sets
+transportedTrain=subset(cleantrain,split==TRUE)
+transportedTest=subset(cleantrain,split==FALSE)
+Transported = as.logical(cleantrain$Transported)
+class(newtrain$Transported)
+str(newtrain)
+summary(newtrain)
+
+# RandomForest Model
+randomd=randomForest(Transported~RoomService+Spa+FoodCourt+HomePlanet
+                +Age+Destination+VIP+CryoSleep+VRDeck,data=cleantrain,na.action=na.exclude,ntree = 230)
+
+
+
+test=read.csv("test.csv")
+str(test)
+test$VIP=as.factor(test$VIP)
+class(test$VIP)
+test$CryoSleep=as.factor(test$CryoSleep)
+class(test$CryoSleep)
+
+finaltest = test
+finaltest$VIP=as.factor(finaltest$VIP)
+class(finaltest$VIP)
+finaltest$CryoSleep=as.factor(finaltest$CryoSleep)
+class(finaltest$CryoSleep)
+endtest = mice(finaltest,m=5,method=c("","","polyreg","","","pmm","polyreg","pmm","pmm","pmm","pmm","pmm",""),maxit=20)
+
+cleantest=complete(endtest,1)
+
+#prediction
+PredictRF = predict(randomd,newdata=cleantest,type="class")
+
+
+
+#newfile generation
+solution=data.frame(PassengerId = cleantest$PassengerId,Transported=PredictRF)
+length(cleantest$PassengerId)
+length(PredictRF)
+submission=read.csv("sample_submission.csv")
+submission$Transported=PredictRF
+submission$PassengerId=cleantest$PassengerId
+
+
+write.csv(solution,"RFMN2.csv",row.names = FALSE)
+
